@@ -399,6 +399,28 @@ input,select,textarea{font-family:'Outfit',sans-serif}
 }
 .tb-actions::-webkit-scrollbar{display:none}
 
+/* Filter bar — segunda fila en móvil */
+.filter-bar{
+  display:none; /* hidden on desktop, shown on mobile */
+  background:var(--panel);
+  border-bottom:1px solid var(--border);
+  padding:6px 10px;
+  gap:6px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  flex-shrink:0;
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+  align-items:center;
+  -webkit-overflow-scrolling:touch;
+}
+.filter-bar::-webkit-scrollbar{display:none}
+@media(max-width:900px){
+  .filter-bar{ display:flex; }
+  /* On mobile, hide filters from topbar — they live in filter-bar */
+  .tb-filters{ display:none; }
+}
+
 /* Search */
 .search-wrap{
   display:flex;align-items:center;gap:8px;
@@ -1211,13 +1233,22 @@ input,select,textarea{font-family:'Outfit',sans-serif}
   /* Topbar compacto */
   .topbar{ padding:0 10px; gap:6px; min-height:52px; flex-wrap:nowrap; }
   .tb-title{ font-size:15px; flex-shrink:0; }
-  .tb-actions{ gap:5px; }
-  .search-wrap{ padding:6px 8px; }
-  .search-wrap input{ width:100px; }
-  .filter-select{ font-size:11.5px; padding:6px 6px; max-width:110px; }
+  .tb-actions{
+    flex:1; gap:5px;
+    overflow-x:auto; overflow-y:hidden;
+    flex-wrap:nowrap;
+    justify-content:flex-end;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+    padding:4px 0;
+  }
+  .tb-actions::-webkit-scrollbar{display:none}
+  .search-wrap{ padding:6px 8px; flex-shrink:0; }
+  .search-wrap input{ width:80px; }
+  .view-toggle{ flex-shrink:0; }
   .vt-btn{ padding:6px 10px; font-size:12px; }
-  .btn-primary{ padding:7px 12px; font-size:12.5px; }
-  .export-btn{ padding:6px 8px; font-size:11px; }
+  .btn-primary{ padding:7px 12px; font-size:12.5px; flex-shrink:0; white-space:nowrap; }
+  .export-btn{ padding:6px 8px; font-size:13px; flex-shrink:0; }
 
   /* Kanban: una columna casi completa, scroll horizontal con snap */
   .page-content{ overflow:hidden; }
@@ -1244,10 +1275,8 @@ input,select,textarea{font-family:'Outfit',sans-serif}
 @media(max-width:480px){
   .topbar{ padding:0 8px; gap:5px; }
   .tb-title{ font-size:14px; }
-  /* Ocultar filtros — están en el sidebar */
-  .filter-select{ display:none; }
-  .search-wrap input{ width:80px; }
-  .export-btn{ display:none; }
+  .search-wrap input{ width:70px; }
+  .export-btn{ font-size:13px; padding:5px 7px; }
 
   .dash-grid{ grid-template-columns:repeat(2,1fr); }
   .dash-row{ grid-template-columns:1fr; }
@@ -1429,6 +1458,9 @@ input,select,textarea{font-family:'Outfit',sans-serif}
         <!-- dynamic -->
       </div>
     </div>
+
+    <!-- FILTER BAR (mobile second row) -->
+    <div class="filter-bar" id="filterBar"></div>
 
     <!-- PAGE -->
     <div class="page-content" id="pageContent">
@@ -1775,6 +1807,10 @@ function navigate(view, filter){
   const titles = {dashboard:'Dashboard',tasks:'Tareas',calendar:'Calendario',admin:'Administración',deleted:'Tareas eliminadas'};
   document.getElementById('tb-title').textContent = titles[view] || 'TaskFlow';
 
+  // Clear filter bar when not on tasks view
+  const fb = document.getElementById('filterBar');
+  if(fb && view !== 'tasks') fb.innerHTML = '';
+
   window.App.renderCurrent();
 }
 
@@ -1934,38 +1970,66 @@ window.App = {
 
   /* ── TASKS ── */
   renderTasks(){
+    // ── TOPBAR: always visible elements ──
     const topbar = `
       <div class="search-wrap">
         <span style="color:var(--text3)">🔍</span>
-        <input id="searchInp" type="text" placeholder="Buscar tareas... (Ctrl+F)" oninput="App.renderTasks()" autocomplete="off">
+        <input id="searchInp" type="text" placeholder="Buscar..." oninput="App.renderTasks()" autocomplete="off">
       </div>
-      <select class="filter-select" id="filterStatus" onchange="App.renderTasks()">
-        <option value="all">Todos los estados</option>
-        <option value="pending" ${AppState.currentFilter==='pending'?'selected':''}>Pendiente</option>
-        <option value="inprogress" ${AppState.currentFilter==='inprogress'?'selected':''}>En progreso</option>
-        <option value="done" ${AppState.currentFilter==='done'?'selected':''}>Completada</option>
-        <option value="cancelled">Cancelada</option>
-      </select>
-      <select class="filter-select" id="filterPrio" onchange="App.renderTasks()">
-        <option value="all">Toda prioridad</option>
-        <option value="high" ${AppState.currentFilter==='high'?'selected':''}>Alta</option>
-        <option value="medium">Media</option>
-        <option value="low">Baja</option>
-      </select>
-      ${AppState.currentUser?.role==='admin' ? `
-      <select class="filter-select" id="filterUser" onchange="App.renderTasks()">
-        <option value="all">Todos los usuarios</option>
-        ${AppState.users.map(u=>`<option value="${u.id}">${u.name}</option>`).join('')}
-      </select>` : ''}
+      <span class="tb-filters" style="display:contents">
+        <select class="filter-select" id="filterStatus" onchange="App.renderTasks()">
+          <option value="all">Todos los estados</option>
+          <option value="pending" ${AppState.currentFilter==='pending'?'selected':''}>Pendiente</option>
+          <option value="inprogress" ${AppState.currentFilter==='inprogress'?'selected':''}>En progreso</option>
+          <option value="done" ${AppState.currentFilter==='done'?'selected':''}>Completada</option>
+          <option value="cancelled">Cancelada</option>
+        </select>
+        <select class="filter-select" id="filterPrio" onchange="App.renderTasks()">
+          <option value="all">Toda prioridad</option>
+          <option value="high" ${AppState.currentFilter==='high'?'selected':''}>Alta</option>
+          <option value="medium">Media</option>
+          <option value="low">Baja</option>
+        </select>
+        ${AppState.currentUser?.role==='admin' ? `
+        <select class="filter-select" id="filterUser" onchange="App.renderTasks()">
+          <option value="all">Todos los usuarios</option>
+          ${AppState.users.map(u=>`<option value="${u.id}">${u.name}</option>`).join('')}
+        </select>` : ''}
+      </span>
       <div class="view-toggle">
         <button class="vt-btn ${AppState.taskView==='kanban'?'active':''}" onclick="setTaskView('kanban')">Kanban</button>
         <button class="vt-btn ${AppState.taskView==='list'?'active':''}" onclick="setTaskView('list')">Lista</button>
       </div>
-      <button class="export-btn" onclick="exportTasksExcel()" title="Exportar a Excel">📊 Excel</button>
-      <button class="export-btn" onclick="refreshApp()" title="Actualizar" id="refreshBtn" style="font-size:15px;padding:6px 10px">↻</button>
-      <button class="btn-primary" onclick="openTaskModal()">+ Nueva tarea</button>
+      <button class="export-btn" onclick="exportTasksExcel()" title="Excel">📊</button>
+      <button class="export-btn" onclick="refreshApp()" title="Actualizar" id="refreshBtn" style="font-size:16px">↻</button>
+      <button class="btn-primary" onclick="openTaskModal()">+ Nueva</button>
     `;
     setTopbarActions(topbar);
+
+    // ── FILTER BAR: shown below topbar on mobile ──
+    const filterBar = document.getElementById('filterBar');
+    if(filterBar){
+      filterBar.innerHTML = `
+        <select class="filter-select" id="filterStatusM" onchange="syncFilter('Status',this.value)" style="flex-shrink:0">
+          <option value="all">Todos los estados</option>
+          <option value="pending" ${AppState.currentFilter==='pending'?'selected':''}>Pendiente</option>
+          <option value="inprogress" ${AppState.currentFilter==='inprogress'?'selected':''}>En progreso</option>
+          <option value="done" ${AppState.currentFilter==='done'?'selected':''}>Completada</option>
+          <option value="cancelled">Cancelada</option>
+        </select>
+        <select class="filter-select" id="filterPrioM" onchange="syncFilter('Prio',this.value)" style="flex-shrink:0">
+          <option value="all">Toda prioridad</option>
+          <option value="high" ${AppState.currentFilter==='high'?'selected':''}>Alta</option>
+          <option value="medium">Media</option>
+          <option value="low">Baja</option>
+        </select>
+        ${AppState.currentUser?.role==='admin' ? `
+        <select class="filter-select" id="filterUserM" onchange="syncFilter('User',this.value)" style="flex-shrink:0">
+          <option value="all">Todos los usuarios</option>
+          ${AppState.users.map(u=>`<option value="${u.id}">${u.name}</option>`).join('')}
+        </select>` : ''}
+      `;
+    }
 
     // Get filtered tasks
     const search = document.getElementById('searchInp')?.value.toLowerCase() || '';
@@ -2416,6 +2480,13 @@ function renderMiniCard(t){
 
 function setTaskView(v){
   AppState.taskView = v;
+  App.renderTasks();
+}
+
+// Sync mobile filter bar → desktop filters → re-render
+function syncFilter(type, value){
+  const desktop = document.getElementById('filter'+type);
+  if(desktop) desktop.value = value;
   App.renderTasks();
 }
 
